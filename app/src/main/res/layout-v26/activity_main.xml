@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.constraint.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context="deodates.arora.MainActivity"
+    tools:layout_editor_absoluteY="81dp">
+
+    <VideoView
+        android:id="@+id/videoView"
+        android:layout_width="0dp"
+        android:layout_height="222dp"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="MissingConstraints" />
+
+    <Switch
+        android:id="@+id/switch_mode"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        app:layout_constraintStart_toEndOf="@+id/textView_manual"
+        app:layout_constraintTop_toBottomOf="@+id/videoView" />
+
+    <Switch
+        android:id="@+id/switch_car_cam"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="8dp"
+        android:layout_marginTop="8dp"
+        app:layout_constraintEnd_toStartOf="@+id/textView_car"
+        app:layout_constraintTop_toBottomOf="@+id/videoView" />
+
+    <TextView
+        android:id="@+id/textView_manual"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="36dp"
+        android:layout_marginTop="8dp"
+        android:text="@string/manual"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/videoView" />
+
+    <TextView
+        android:id="@+id/textView_auto"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:text="@string/auto"
+        app:layout_constraintStart_toEndOf="@+id/switch_mode"
+        app:layout_constraintTop_toBottomOf="@+id/videoView" />
+
+    <TextView
+        android:id="@+id/textView_cam"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="8dp"
+        android:layout_marginTop="8dp"
+        android:text="@string/cam"
+        app:layout_constraintEnd_toStartOf="@+id/switch_car_cam"
+        app:layout_constraintTop_toBottomOf="@+id/videoView" />
+
+    <TextView
+        android:id="@+id/textView_car"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="36dp"
+        android:layout_marginTop="8dp"
+        android:text="@string/car"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/videoView" />
+
+    <io.github.controlwear.virtual.joystick.android.JoystickView xmlns:custom="http://schemas.android.com/apk/res-auto"
+        android:id="@+id/joystickView"
+        android:layout_width="wrap_content"
+        android:layout_height="211dp"
+        android:layout_marginBottom="8dp"
+        android:layout_marginEnd="8dp"
+        android:layout_marginStart="8dp"
+        custom:JV_backgroundColor="#009688"
+        custom:JV_borderColor="#00796B"
+        custom:JV_borderWidth="4dp"
+        custom:JV_buttonColor="#FF6E40"
+        custom:JV_buttonSizeRatio="15%"
+        custom:JV_fixedCenter="false"
+        custom:layout_constraintBottom_toTopOf="@+id/textView_info"
+        custom:layout_constraintEnd_toEndOf="parent"
+        custom:layout_constraintHorizontal_bias="0.503"
+        custom:layout_constraintStart_toStartOf="parent" />
+
+    <TextView
+        android:id="@+id/textView_info"
+        android:layout_width="0dp"
+        android:layout_height="22dp"
+        android:layout_gravity="center_vertical|end"
+        android:layout_marginBottom="8dp"
+        android:layout_marginEnd="8dp"
+        android:layout_marginStart="8dp"
+        android:gravity="center"
+        android:justificationMode="inter_word"
+        android:text="@string/about"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <ToggleButton
+        android:id="@+id/toggle_on_off"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="40dp"
+        android:text="OFF"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/videoView" />
+
+</android.support.constraint.ConstraintLayout>
