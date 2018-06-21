@@ -4,7 +4,8 @@ android {
     compileSdkVersion 26
     defaultConfig {
         applicationId "deodates.arora"
-        minSdkVersion 22
+        //minSdkVersion 22
+        minSdkVersion 19
         targetSdkVersion 26
         versionCode 1
         versionName "1.0"
@@ -25,5 +26,15 @@ dependencies {
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'com.android.support.test:runner:0.5'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:2.2.2'
+
+    //Virtual Joystick
     compile 'io.github.controlwear:virtualjoystick:1.7.3'
+
+    // exo player
+    compile 'com.google.android.exoplayer:exoplayer:r2.4.0'
+    compile 'com.google.android.exoplayer:exoplayer-core:r2.4.0'
+    compile 'com.google.android.exoplayer:exoplayer-dash:r2.4.0'
+    compile 'com.google.android.exoplayer:exoplayer-hls:r2.4.0'
+    compile 'com.google.android.exoplayer:exoplayer-smoothstreaming:r2.4.0'
+    compile 'com.google.android.exoplayer:exoplayer-ui:r2.4.0'
 }

@@ -33,6 +33,7 @@ public class About_Activity extends AppCompatActivity {
         text_about_full.append("\nCSE 2014-18 | MBC Kuttikkanam\n");
     }
 
+    /*
     public boolean onCreateOptionsMenu(Menu menu)
     {
         MenuInflater inflater = getMenuInflater();
@@ -53,4 +54,5 @@ public class About_Activity extends AppCompatActivity {
                 return super.onOptionsItemSelected(item);
         }
     }
+    */
 }

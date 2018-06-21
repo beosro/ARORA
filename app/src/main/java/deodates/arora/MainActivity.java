@@ -4,12 +4,27 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.media.MediaPlayer;
 import android.net.Uri;
 import android.net.wifi.WifiManager;
+import android.os.Handler;
+import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import io.github.controlwear.virtual.joystick.android.JoystickView;
-
+import com.google.android.exoplayer2.ExoPlayerFactory;
+import com.google.android.exoplayer2.SimpleExoPlayer;
+import com.google.android.exoplayer2.extractor.DefaultExtractorsFactory;
+import com.google.android.exoplayer2.extractor.ExtractorsFactory;
+import com.google.android.exoplayer2.source.ExtractorMediaSource;
+import com.google.android.exoplayer2.source.MediaSource;
+import com.google.android.exoplayer2.trackselection.AdaptiveTrackSelection;
+import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
+import com.google.android.exoplayer2.trackselection.TrackSelector;
+import com.google.android.exoplayer2.ui.SimpleExoPlayerView;
+import com.google.android.exoplayer2.upstream.BandwidthMeter;
+import com.google.android.exoplayer2.upstream.DefaultBandwidthMeter;
+import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
 import android.text.InputFilter;
 import android.text.Spanned;
 import android.text.TextUtils;
@@ -20,6 +35,7 @@ import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
+import android.webkit.WebView;
 import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.MediaController;
@@ -30,12 +46,15 @@ import android.widget.ToggleButton;
 import android.widget.VideoView;
 
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.Socket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 
@@ -54,15 +73,17 @@ public class MainActivity extends AppCompatActivity {
     /*
         The commands are seperated by commas
          1. Start byte <ARORA>
-         2. Mode <0: Manual, 1: Automatic>
-         3. Control <0: Cam, 1: Car>
-         4. PWM Set_speed <0 to 1>
-         5. Car Forward_Backward Bit <1: Forward, 0: Stop, -1: Backward>
-         6. Car_Left_Right Bit <1: Right, 0: Stop, -1: Left>
-         7. Cam Up_Down Bit <1: Up, 0: Stop, -1: Down>
-         8. Cam_Left_Right Bit <1: Right, 0: Stop, -1: Left>
+         2. Serial Number
+         3. Mode <0: Manual, 1: Automatic>
+         4. Control <0: Cam, 1: Car>
+         5. PWM Set_speed <0 to 100>
+         6. Car Forward_Backward Bit <1: Forward, 0: Stop, -1: Backward>
+         7. Car_Left_Right Bit <1: Right, 0: Stop, -1: Left>
+         8. Cam Up_Down Bit <1: Up, 0: Stop, -1: Down>
+         9. Cam_Left_Right Bit <1: Right, 0: Stop, -1: Left>
          */
     public String header = "ARORA";
+    public int udp_serial_no = 0;
     public int cmd_mode = 0;
     public int control_mode = 0;
     public int set_speed = 0;
@@ -71,13 +92,31 @@ public class MainActivity extends AppCompatActivity {
     public int cam_up_down = 0;
     public int cam_left_right = 0;
 
+    //For Joystick data
+    public int global_angle = 0;
+    public int global_strength = 0;
+
     //Communication data
-    public String ip = "0.0.0.0";
-    public int port = 1024;
-    public String messageStr_tx;
-    public String video_addr = "0.0.0.0";
+    public String ip = "10.0.0.5";
+    public int udp_port = 5555;
+    public String messageStr_tx = "null";
+    public String messageStr_rx = "null";
+    public String udp_state = "null";
+    public int video_port = 8081;
+
+    //For Video
+    //VideoView videoView = (VideoView)findViewById(R.id.videoView);
+
+    //For exo player
+    //SimpleExoPlayerView exoPlayerView;
+    //SimpleExoPlayer exoPlayer;
+
+    //For UDP Handler
+    UdpClientHandler udpClientHandler;
+    UdpClientThread udpClientThread;
 
     //For Prompt
+    public boolean display_prompt = true;
     final Context context = this;
     final static String input_err_ip = "Please input IP address";
     final static String input_err_port = "Please input Port Number";
@@ -88,29 +127,142 @@ public class MainActivity extends AppCompatActivity {
          super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        /*                                                                                              ////////////////////////
-        //Checking if Wifi is ON
-         WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-         if (wifi.isWifiEnabled()) {
-             Toast.makeText(this, "Connected to Wifi: " + wifi.getConnectionInfo().getSSID(), Toast.LENGTH_SHORT).show();
+        wifi_check();
+
+         if(display_prompt == true)
+         {
+             display_prompt();
          }
-         else {
-             Toast.makeText(this, "Please turn on WIFI", Toast.LENGTH_SHORT).show();
-             finish(); //Exits if wifi not connected
-         }
-         */
 
-        display_prompt();
+         create_udp_client_handler();
 
-        init_controls();
+         init_controls();
 
-        init_video();
+         //init_exo_player();
+
+        //init_video_videoview();
+
+         init_webView();
     }
 
-    private void init_video() {
+    private void init_webView() {
 
-        VideoView videoView = (VideoView)findViewById(R.id.videoView);
+        WebView web_view = (WebView) findViewById(R.id.web_view);
 
+        String video_addr = "http://" + ip + ":" + video_port;
+        web_view.loadUrl(video_addr);
+    }
+
+    /*
+    private void init_exo_player() {
+
+        exoPlayerView = (SimpleExoPlayerView) findViewById(R.id.exo_player_view);
+        try {
+            //BandwidthMeter bandwidthMeter = new DefaultBandwidthMeter();
+            //TrackSelector trackSelector = new DefaultTrackSelector(new AdaptiveTrackSelection.Factory(bandwidthMeter));
+            exoPlayer = ExoPlayerFactory.newSimpleInstance(this, null);
+
+            String video_addr = ip + ":" + video_port;
+            Uri videoURI = Uri.parse(video_addr);
+
+            DefaultHttpDataSourceFactory dataSourceFactory = new DefaultHttpDataSourceFactory("exoplayer_video");
+            ExtractorsFactory extractorsFactory = new DefaultExtractorsFactory();
+            MediaSource mediaSource = new ExtractorMediaSource(videoURI, dataSourceFactory, extractorsFactory, null, null);
+
+            exoPlayerView.setPlayer(exoPlayer);
+            exoPlayer.prepare(mediaSource);
+            exoPlayer.setPlayWhenReady(true);
+        }
+        catch (Exception e){
+            Log.e("MainAcvtivity"," exoplayer error "+ e.toString());
+        }
+
+    }
+    */
+
+    private void create_udp_client_handler() {
+
+        udpClientHandler = new UdpClientHandler(this);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        //videoView.stopPlayback();
+    }
+
+    private void wifi_check()
+    {
+        //Checking if Wifi is ON
+        WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        if (wifi.isWifiEnabled()) {
+
+            //Take current SSID and formats it to normal double quote string by eliminating xtra double quotes
+            String current_SSID = wifi.getConnectionInfo().getSSID().replaceAll("\"","");
+
+            Toast.makeText(this, "Connected to Wifi: " + current_SSID, Toast.LENGTH_SHORT).show();
+
+            String[] known_SSIDs = {"arora_AP"}; //Add more SSID's if needed
+
+            if(Arrays.asList(known_SSIDs).contains(current_SSID))
+            {
+                display_prompt = false;
+            }
+        }
+        else {
+            Toast.makeText(this, "Please turn on WIFI and restart app", Toast.LENGTH_SHORT).show();
+            //finish(); //Exits if wifi not connected
+        }
+    }
+
+    private void updateState(String state){
+        udp_state = state;
+    }
+
+    private void updateRxMsg(String rxmsg){
+        messageStr_rx = rxmsg;
+    }
+
+    private void clientEnd(){
+        udpClientThread = null;
+    }
+
+    public static class UdpClientHandler extends Handler {
+        public static final int UPDATE_STATE = 0;
+        public static final int UPDATE_MSG = 1;
+        public static final int UPDATE_END = 2;
+        private MainActivity parent;
+
+        public UdpClientHandler(MainActivity parent) {
+            super();
+            this.parent = parent;
+        }
+
+        @Override
+        public void handleMessage(Message msg) {
+
+            switch (msg.what){
+                case UPDATE_STATE:
+                    parent.updateState((String)msg.obj);
+                    break;
+                case UPDATE_MSG:
+                    parent.updateRxMsg((String)msg.obj);
+                    break;
+                case UPDATE_END:
+                    parent.clientEnd();
+                    break;
+                default:
+                    super.handleMessage(msg);
+            }
+
+        }
+    }
+
+
+    /*
+    public void init_video_videoview() {
+
+        String video_addr = ip + ":" + video_port;
         Uri UriSrc = Uri.parse(video_addr);
         if(UriSrc == null){
             Toast.makeText(MainActivity.this,
@@ -126,11 +278,22 @@ public class MainActivity extends AppCompatActivity {
                     Toast.LENGTH_LONG).show();
         }
 
+        //To disable the alert "can't play this video"
+        videoView.setOnErrorListener(new MediaPlayer.OnErrorListener() {
+
+            @Override
+            public boolean onError(MediaPlayer mp, int what, int extra) {
+                Log.d("video", "setOnErrorListener ");
+                return true;
+            }
+        });
+
     }
+    */
 
     private void display_prompt() {
 
-         //get activity_prompt.xml
+        //get activity_prompt.xml
         LayoutInflater li = LayoutInflater.from(context);
         View promptsView = li.inflate(R.layout.activity_prompt, null);
         AlertDialog.Builder alertDB = new AlertDialog.Builder(context);
@@ -139,6 +302,7 @@ public class MainActivity extends AppCompatActivity {
         alertDB.setView(promptsView);
         final EditText Text_ip = (EditText) promptsView.findViewById(R.id.Text_ip);
         final EditText Text_port = (EditText) promptsView.findViewById(R.id.Text_port);
+        final EditText Text_port_vid = (EditText) promptsView.findViewById(R.id.Text_port_vid);
 
         //For IP Address format check
         InputFilter[] filters = new InputFilter[1];
@@ -167,15 +331,6 @@ public class MainActivity extends AppCompatActivity {
             }
         };
         Text_ip.setFilters(filters);
-
-        /*                                                                                              ///////////////////////////
-        Text_port.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                //On click of port input
-            }
-        });
-        */
 
         //Port value should be <=65535 and >=1024. Defining a filter
         class MinMaxFilter implements InputFilter {
@@ -213,26 +368,23 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(DialogInterface dialog, int which) {
 
-                /*
-                //Some algorithm to be implemented if input is null                                     //////////////////////////
-                if(Text_ip.getText().length() == 0)
-                {
-                    //Text_ip.setError(input_err_ip);
-                }
-                else if(Text_port.getText().length() == 0)
-                {
-                    //Text_ip.setError(input_err_port);
-                }
-                */
+                //Some algorithm can be implemented if input is null
 
                 if(Text_ip.getText().toString().length() != 0)
                 {
                     ip = Text_ip.getText().toString();
+                    init_webView();
                 }
 
                 if(Text_port.getText().toString().length() != 0)
                 {
-                    port = Integer.parseInt(Text_port.getText().toString());
+                    udp_port = Integer.parseInt(Text_port.getText().toString());
+                }
+
+                if(Text_port_vid.getText().toString().length() != 0)
+                {
+                    video_port = Integer.parseInt(Text_port_vid.getText().toString());
+                    init_webView();
                 }
 
                 dialog.cancel();
@@ -258,6 +410,7 @@ public class MainActivity extends AppCompatActivity {
         JoystickView joystick = (JoystickView) findViewById(R.id.joystickView);
         Switch switch_mode = (Switch) findViewById(R.id.switch_mode);
         final Switch switch_car_cam = (Switch) findViewById(R.id.switch_car_cam);
+        final TextView textView_info = (TextView) findViewById(R.id.textView_info);
         TextView textView_manual = (TextView) findViewById(R.id.textView_manual);
         TextView textView_auto = (TextView) findViewById(R.id.textView_auto);
         final TextView textView_car = (TextView) findViewById(R.id.textView_car);
@@ -274,11 +427,21 @@ public class MainActivity extends AppCompatActivity {
         switch_mode.setChecked(false);
         switch_car_cam.setChecked(false);
 
+        //When Joystick is not moving
+        get_joystick_data(0, 0);
+        messageStr_tx = make_message();
+        Communication(messageStr_tx);
+
+        //When Joystick is moving
         joystick.setOnMoveListener(new JoystickView.OnMoveListener() {
             @Override
             public void onMove(int angle, int strength) {
-                messageStr_tx = get_joystick_data(angle, strength);
+                global_angle = angle;
+                global_strength = strength;
+                get_joystick_data(angle, strength);
+                messageStr_tx = make_message();
                 Communication(messageStr_tx);
+                textView_info.setText("Angle: "+angle+" "+"Strength: "+strength);
             }
         });
 
@@ -293,12 +456,16 @@ public class MainActivity extends AppCompatActivity {
                     textView_car.setVisibility(View.INVISIBLE);
                     textView_cam.setEnabled(false);
                     textView_cam.setVisibility(View.INVISIBLE);
-                    toggle_on_off.setEnabled(true);
+                    // toggle_on_off.setEnabled(true);
                     toggle_on_off.setChecked(false);
                     toggle_on_off.setVisibility(View.VISIBLE);
                     mode_flag = 1; // Auto
                     control_flag = 0; // Force Cam control
                     autonomous_flag = 0;
+                    // textView_info.setText("Mode: Automatic");
+                    textView_info.setText("Automatic mode not available");
+                    messageStr_tx = make_message();
+                    Communication(messageStr_tx);
 
                 } else {
                     // If the switch button is off ie manual
@@ -315,6 +482,9 @@ public class MainActivity extends AppCompatActivity {
                     mode_flag = 0; // Manual
                     control_flag = 0; // Force Cam control
                     autonomous_flag = 0;
+                    textView_info.setText("Mode: Manual");
+                    messageStr_tx = make_message();
+                    Communication(messageStr_tx);
                 }
             }
 
@@ -325,11 +495,23 @@ public class MainActivity extends AppCompatActivity {
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                 if (isChecked) {
                     // If the switch button is on ie Car
+                    mode_flag = 0; //Manual
                     control_flag = 1; // Car control
+                    autonomous_flag = 0;
+
+                    textView_info.setText("Control: Car");
+                    messageStr_tx = make_message();
+                    Communication(messageStr_tx);
 
                 } else {
                     // If the switch button is off ie cam
+                    mode_flag = 0; //Manual
                     control_flag = 0; // Cam control
+                    autonomous_flag = 0;
+
+                    textView_info.setText("Control: Cam");
+                    messageStr_tx = make_message();
+                    Communication(messageStr_tx);
                 }
             }
 
@@ -339,10 +521,22 @@ public class MainActivity extends AppCompatActivity {
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                 if (isChecked) {
                     // The toggle is enabled
+                    mode_flag = 1; //Auto
+                    control_flag = 0; // Force Cam control
                     autonomous_flag = 1;
+
+                    textView_info.setText("Autonomous: Enabled");
+                    messageStr_tx = make_message();
+                    Communication(messageStr_tx);
                 } else {
                     // The toggle is disabled
+                    mode_flag = 1; //Auto
+                    control_flag = 0; // Force Cam control
                     autonomous_flag = 0;
+
+                    textView_info.setText("Autonomous: Disabled");
+                    messageStr_tx = make_message();
+                    Communication(messageStr_tx);
                 }
             }
         });
@@ -359,31 +553,32 @@ public class MainActivity extends AppCompatActivity {
         cmd_mode <0 = Manual, 1 = Auto>
         control_mode <0 = Cam, 1 = Car>
         */
-        if (mode_flag == 0) { // if manual
 
+        if(mode_flag==0 && control_flag ==0)
+        {
+            //Manual + Cam Control
             cmd_mode = 0;
-        }
-        else { //if automatic
-
-            if (autonomous_flag == 0) //if autonomous OFF
-            {
-                cmd_mode = 0;
-            }
-            else{ //if autonomous ON
-                cmd_mode = 1;
-            }
-
-        }
-
-        if (control_flag == 0) { // if Cam
-
             control_mode = 0;
         }
-        else { // if car
-
+        else if(mode_flag==0 && control_flag==1)
+        {
+            //Manual + Car Control
+            cmd_mode = 0;
             control_mode = 1;
-
         }
+        else if (mode_flag==1 && autonomous_flag ==0)
+        {
+            //Automatic stop + Cam Control
+            cmd_mode = 1;
+            control_mode = 0;
+        }
+        else if (mode_flag==1 && autonomous_flag==1)
+        {
+            //Automatic start + Cam Control
+            cmd_mode = 1;
+            control_mode = 1;
+        }
+
     }
 
     public boolean onCreateOptionsMenu(Menu menu)
@@ -412,7 +607,9 @@ public class MainActivity extends AppCompatActivity {
     {
         if (keyCode == KeyEvent.KEYCODE_BACK && event.getRepeatCount() == 0)
         {
-            new AlertDialog.Builder(this).setMessage("ARORA will be disconnected").setTitle("Exit?").setCancelable(false).setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+            new AlertDialog.Builder(this).setMessage("ARORA will be disconnected")
+                    .setTitle("Exit?").setCancelable(false)
+                    .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface dialog, int whichButton)
                 {
                     finish();
@@ -427,7 +624,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     //Read the command variables and join them here
-    public String get_joystick_data(int angle, int strength)
+    public void get_joystick_data(int angle, int strength)
     {
         /*
         The angle starts from 0 degrees right and reads counter-clockwise
@@ -531,23 +728,30 @@ public class MainActivity extends AppCompatActivity {
                 set_speed = strength;
             }
         }
+    }
 
+    public String make_message()
+    {
         set_mode_using_flags();
+        set_udp_serial_num();
 
         /*
         The commands are seperated by commas
          1. Start byte <ARORA>
-         2. Mode <0: Manual, 1: Automatic>
-         3. Control <0: Cam, 1: Car>
-         4. PWM Set_speed <0 to 1>
-         5. Car Forward_Backward Bit <1: Forward, 0: Stop, -1: Backward>
-         6. Car_Left_Right Bit <1: Right, 0: Stop, -1: Left>
-         7. Cam Up_Down Bit <1: Up, 0: Stop, -1: Down>
-         8. Cam_Left_Right Bit <1: Right, 0: Stop, -1: Left>
+         2. Serial Number
+         3. Mode <0: Manual, 1: Automatic>
+         4. Control <0: Cam, 1: Car>
+         5. PWM Set_speed <0 to 100>
+         6. Car Forward_Backward Bit <1: Forward, 0: Stop, -1: Backward>
+         7. Car_Left_Right Bit <1: Right, 0: Stop, -1: Left>
+         8. Cam Up_Down Bit <1: Up, 0: Stop, -1: Down>
+         9. Cam_Left_Right Bit <1: Right, 0: Stop, -1: Left>
+         9. Cam_Left_Right Bit <1: Right, 0: Stop, -1: Left>
          */
 
         List<String> cmds = new ArrayList<String>();
         cmds.add(header);
+        cmds.add(Integer.toString(udp_serial_no));
         cmds.add(Integer.toString(cmd_mode));
         cmds.add(Integer.toString(control_mode));
         cmds.add(Integer.toString(set_speed));
@@ -559,44 +763,34 @@ public class MainActivity extends AppCompatActivity {
         return messageStr_tx;
     }
 
-    public void Communication(String messageStr_tx)
-    {
-        boolean run = true;
-        try {
+    public void set_udp_serial_num() {
 
-            // Transmission
-            DatagramSocket udpSocket = new DatagramSocket(port);
-            InetAddress serverAddr = InetAddress.getByName(ip);                                         //////////////////////////
-
-            byte[] message_tx = messageStr_tx.getBytes();
-
-            DatagramPacket packet_tx = new DatagramPacket(message_tx, message_tx.length, serverAddr, port);
-            udpSocket.send(packet_tx);
-
-            try {
-
-                    //Reception
-                    byte[] message_rx = new byte[8000];
-                    DatagramPacket packet_rx = new DatagramPacket(message_rx, message_rx.length);
-                    udpSocket.setSoTimeout(10000);
-                    udpSocket.receive(packet_rx);
-
-                    String messageStr_rx = new String(message_rx, 0, packet_rx.getLength());
-                    //Call read_message fn of Command_Class here and pass the messageStr_rx to it
-
-                } catch (IOException e) {
-                    Log.e(" UDP client has IOExc", "error: ", e);
-                    run = false;
-                    udpSocket.close();
-                }
-
-        } catch (SocketException e) {
-            Log.e("Socket Open:", "Error:", e);
-        } catch (UnknownHostException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
+         //Check for max int value. If max, reset. Else increment
+        if (udp_serial_no == Integer.MAX_VALUE)
+        {
+            reset_udp_serial_num();
+        }
+        else
+        {
+            udp_serial_no += 1;
         }
 
     }
+
+    public void reset_udp_serial_num() {
+
+        udp_serial_no = 0;
+    }
+
+    public void Communication(String messageStr_tx)
+    {
+        udpClientThread = new deodates.arora.UdpClientThread(
+                ip,
+                udp_port,
+                messageStr_tx,
+                udpClientHandler);
+
+        udpClientThread.start();
+    }
+
 }

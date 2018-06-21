@@ -4,12 +4,14 @@
     <string name="auto">Auto</string>
     <string name="car">Car</string>
     <string name="cam">Cam</string>
-    <string name="about">Designed and developed by: Jiss</string>
+    <string name="about">Designed and developed by: Team arora</string>
     <string name="off">OFF</string>
     <string name="Toast_auto">Automatic Mode ON</string>
     <string name="connection_settings">Connection Settings</string>
     <string name="connect">Connect</string>
-    <string name="enter_port">Enter Port Number [1024-65535]</string>
+    <string name="enter_port">Enter Port Number</string>
     <string name="enter_ip_address">Enter IP Address</string>
     <string name="about_full">About</string>
+    <string name="enter_video_port">Enter Video Port</string>
+    <string name="video_settings">Video Settings</string>
 </resources>
